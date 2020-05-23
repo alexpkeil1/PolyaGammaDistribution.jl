@@ -1,12 +1,10 @@
 # PolyaGammaDistribution
 
-[![Build Status](https://travis-ci.org/currymj/PolyaGammaDistribution.jl.svg?branch=master)](https://travis-ci.org/currymj/PolyaGammaDistribution.jl)
+Note: this package had fallen by the wayside. I have updated it with a package file structure that works with Julia 1.3+.
+While the original author notes it is still under active development, the package works well for the purposes of Gibbs sampling
+for a logistic model, as described in the Polson, Scott and Windle paper below.
 
-[![Coverage Status](https://coveralls.io/repos/currymj/PolyaGammaDistribution.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/currymj/PolyaGammaDistribution.jl?branch=master)
-
-[![codecov.io](http://codecov.io/github/currymj/PolyaGammaDistribution.jl/coverage.svg?branch=master)](http://codecov.io/github/currymj/PolyaGammaDistribution.jl?branch=master)
-
-[![Build status](https://ci.appveyor.com/api/projects/status/1cbrjw3gotlvps31?svg=true)](https://ci.appveyor.com/project/currymj/polyagammadistribution-jl)
+ - Alex Keil
 
 # What is this?
 
