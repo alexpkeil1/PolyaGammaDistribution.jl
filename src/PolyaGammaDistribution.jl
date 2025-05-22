@@ -15,24 +15,24 @@ const TERMS = 20
 """
 function logcosh(x::Real)
     return x + log1pexp(-2x) - log(2)
-end 
+end
 
 """
 A Distribution containing the parameters ``b > 0`` and ``c`` for a Pólya-Gamma
 distribution ``PG(b, c)``. Note that while in general ``b`` can be real,
 samplers implemented here only work for the integral case.
 """
-struct PolyaGamma{T<:Integer, U<:Real} <: ContinuousUnivariateDistribution
+struct PolyaGamma{T<:Integer,U<:Real} <: ContinuousUnivariateDistribution
     b::T
     c::U
 end
 
 function jacobi_logpdf(z, x; ntrunc::Int)
     v = zero(x)
-    for n in 0:ntrunc
+    for n = 0:ntrunc
         v += (iseven(n) ? 1 : -1) * acoef(n, x)
     end
-    return logcosh(z) -x*z^2/2 + log(v)
+    return logcosh(z) - x * z^2 / 2 + log(v)
 end
 
 """
@@ -40,7 +40,7 @@ end
     See Polson et al. 2013, section 2.3.
 """
 function pg_logcoef(x, b, n)
-    lgamma(n+b)-lgamma(n+1) + log(2n+b) -log(2π * x^3)/2 - (2n+b)^2/8x
+    lgamma(n + b) - lgamma(n + 1) + log(2n + b) - log(2π * x^3) / 2 - (2n + b)^2 / 8x
 end
 """
    log density of the PG(b, 0) distribution.
@@ -48,27 +48,28 @@ end
 """
 function pg0_logpdf(x, b; ntrunc::Int)
     v = zero(x)
-    for n in 0:ntrunc
+    for n = 0:ntrunc
         v += (iseven(n) ? 1 : -1) * exp(pg_logcoef(x, b, n))
     end
-    return (b-1)*log(2) - lgamma(b) + log(v)
+    return (b - 1) * log(2) - lgamma(b) + log(v)
 end
 """
     log density of the PG(b, c) distribution.
     See Polson et al. 2013, section 2.2 and equation (5).
 """
 function pg_logpdf(b, c, x; ntrunc::Int)
-    b*logcosh(c/2) - x*c^2/2 + pg0_logpdf(x, b; ntrunc=ntrunc)
+    b * logcosh(c / 2) - x * c^2 / 2 + pg0_logpdf(x, b; ntrunc = ntrunc)
 end
 
-function Distributions.logpdf(d::PolyaGamma, x::Real; ntrunc::Int=TERMS)
+function Distributions.logpdf(d::PolyaGamma, x::Real; ntrunc::Int = TERMS)
     if d.b == 1
-        return jacobi_logpdf(d.c/2, 4*x; ntrunc=ntrunc) + log(4)
+        return jacobi_logpdf(d.c / 2, 4 * x; ntrunc = ntrunc) + log(4)
     else
-        return pg_logpdf(d.b, d.c, x; ntrunc=ntrunc)
+        return pg_logpdf(d.b, d.c, x; ntrunc = ntrunc)
     end
 end
-Distributions.pdf(d::PolyaGamma, x::Real; ntrunc::Int=TERMS) = exp(Distributions.logpdf(d, x; ntrunc=ntrunc))
+Distributions.pdf(d::PolyaGamma, x::Real; ntrunc::Int = TERMS) =
+    exp(Distributions.logpdf(d, x; ntrunc = ntrunc))
 
 """
 Analytically computes the mean of the given PG distribution, using the formula:
@@ -78,7 +79,7 @@ Analytically computes the mean of the given PG distribution, using the formula:
 ``
 """
 function Distributions.mean(d::PolyaGamma)
-    (d.b / (2.0*d.c)) * tanh(d.c / 2.0)
+    (d.b / (2.0 * d.c)) * tanh(d.c / 2.0)
 end
 
 Distributions.rand(d::PolyaGamma) = rand(GLOBAL_RNG, d)
@@ -97,7 +98,7 @@ Analytically computes the variance of the given PG distribution, using the formu
 ``
 """
 function Distributions.var(d::PolyaGamma)
-    (d.b / (4 * d.c^3)) * (sinh(d.c) - d.c) * (sech(d.c/2)^2)
+    (d.b / (4 * d.c^3)) * (sinh(d.c) - d.c) * (sech(d.c / 2)^2)
 end
 
 # functions below are essentially translated from the BayesLogit R package
@@ -105,9 +106,9 @@ end
 # cdf of Inverse Gaussian, already helpfully given to us
 pigauss(x, μ, λ) = cdf(InverseGaussian(μ, λ), x)
 
-function rtigauss(rng::AbstractRNG, zin, r=TRUNC)
+function rtigauss(rng::AbstractRNG, zin, r = TRUNC)
     z = abs(zin)
-    μ = 1/z
+    μ = 1 / z
     x = r + 1
     if (μ > r)
         α = 0.0
@@ -124,44 +125,44 @@ function rtigauss(rng::AbstractRNG, zin, r=TRUNC)
         while x > r
             λ = 1.0
             y = rand(rng, Normal())^2
-            x = μ + 0.5*μ^2 / λ * y - 0.5 * μ / λ * sqrt(4 * μ * λ * y + (μ * y)^2)
-            if rand(rng) > (μ/(μ + x))
-                x = μ^2/x
+            x = μ + 0.5 * μ^2 / λ * y - 0.5 * μ / λ * sqrt(4 * μ * λ * y + (μ * y)^2)
+            if rand(rng) > (μ / (μ + x))
+                x = μ^2 / x
             end
         end
     end
     x
 end
 
-function mass_texpon(z, x=TRUNC)
-    fz = pi^2 / 8 + z^2 / 2
-    b = sqrt(1.0 / x) * (x * z - 1)
-    a = -1.0 * sqrt(1.0 / x) * (x * z + 1)
+function mass_texpon(z, x = TRUNC)
+    fz = pi^2.0 / 8 + z^2.0 / 2.0
+    b = sqrt(1.0 / x) * (x * z - 1.0)
+    a = -1.0 * sqrt(1.0 / x) * (x * z + 1.0)
 
     x0 = log(fz) + fz * x
-    xb = x0 - z + logcdf(Normal(0,1), b)
-    xa = x0 + z + logcdf(Normal(0,1), a)
+    xb = x0 - z + logcdf(Normal(0.0, 1.0), b)
+    xa = x0 + z + logcdf(Normal(0.0, 1.0), a)
 
-    qdivp = 4 / pi * (exp(xb) + exp(xa))
+    qdivp = 4.0 / pi * (exp(xb) + exp(xa))
 
     1.0 / (1.0 + qdivp)
 end
 
-function rpg_gammasum(num=1, n=1, z=0.0, trunc=200)
-    ci = ((1:num).-(1/2)).^2 * pi^2 * 4
-    ai = ci + z.^2
-    w = zeros(ci)
-    for i=1:num
-        w[i] = 2.0 * sum(rand(rng, Gamma(n),trunc)./ai)
+function rpg_gammasum(num = 1, n = 1, z = 0.0, trunc = 200)
+    ci = ((1:num) .- (1 / 2)) .^ 2.0 * pi^2.0 * 4.0
+    ai = ci + z .^ 2
+    w = zeros(Float64, ci)
+    @inbounds for i = 1:num
+        w[i] = 2.0 * sum(rand(rng, Gamma(n), trunc) ./ ai)
     end
     w
 end
 
-function acoef(n, x, r=TRUNC)
-    if ( x>TRUNC )
-        pi * (n+0.5) * exp( -(n+0.5)^2*pi^2*x/2 )
+function acoef(n, x, r = TRUNC)
+    if (x > TRUNC)
+        pi * (n + 0.5) * exp(-(n + 0.5)^2 * pi^2 * x / 2)
     else
-        (2/pi/x)^1.5 * pi * (n+0.5) * exp( -2*(n+0.5)^2/x )
+        (2.0 / pi / x)^1.5 * pi * (n + 0.5) * exp(-2.0 * (n + 0.5)^2 / x)
     end
 end
 
@@ -169,7 +170,7 @@ end
 # for 1, z
 function rpg_devroye_1(rng::AbstractRNG, z::Float64)
     z = abs(z) * 0.5
-    fz = pi^2 / 8 + z^2 / 2
+    fz = pi^2.0 / 8.0 + z^2.0 / 2.0
 
     numtrials = 0
     totaliter = 0
@@ -182,7 +183,7 @@ function rpg_devroye_1(rng::AbstractRNG, z::Float64)
             x = rtigauss(rng, z)
         end
         s = acoef(0, x)
-        y = rand(rng)*s
+        y = rand(rng) * s
         n = 0
 
         while true
@@ -208,15 +209,15 @@ function rpg_devroye_1(rng::AbstractRNG, z::Float64)
     0.25 * x
 end
 
-function rpg_devroye(rng::AbstractRNG, z=0.0, n=1, num=1)
+function rpg_devroye(rng::AbstractRNG, z = 0.0, n = 1, num = 1)
 
     x = zeros(num)
 
-    for i=1:num
+    @inbounds for i = 1:num
         x[i] = 0
-        for j=1:n
-            temp = rpg_devroye_1(rng, z)
-            x[i] = x[i] + temp
+        @inbounds for j = 1:n
+            x[i] += rpg_devroye_1(rng, z)
+            #x[i] = x[i] + temp
         end
     end
     x
@@ -228,15 +229,15 @@ function rpg_alt_1(rng::AbstractRNG, z)
     x = 0.0
     while (rand(rng) > α)
         x = rpg_devroye_1(rng, 0.0)
-        α = exp(-0.5 * (z * 0.5)^2 * x)
+        α = exp(-0.5 * (z * 0.5)^2.0 * x)
     end
     x
 end
 
-function rpg_alt(z, num=1)
-    Z = [z for _ in 1:num]
+function rpg_alt(z, num = 1)
+    Z = [z for _ = 1:num]
     x = zeros(Z)
-    for i=1:num
+    for i = 1:num
         x[i] = rpg_alt_1(Z[i])
     end
     x
