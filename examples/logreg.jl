@@ -20,7 +20,7 @@ xs = zeros(N_samples)
 for i=2:N_samples
     ωs[i] = rand(PolyaGamma(N, xs[i-1]))
 
-    sigmasq_hat = 1./(1. / sigmasq + ωs[i])
+    sigmasq_hat = 1.0/(1. / sigmasq + ωs[i])
     mu_hat = sigmasq_hat * (mu / sigmasq + (y - N / 2.))
     xs[i] = rand(Normal(mu_hat, sqrt(sigmasq_hat)))
 end
