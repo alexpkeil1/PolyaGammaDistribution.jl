@@ -2,7 +2,7 @@ module PolyaGammaDistribution
 using Distributions
 using Random: AbstractRNG, GLOBAL_RNG, randexp
 using StatsFuns: log1pexp
-using SpecialFunctions: lgamma
+using SpecialFunctions: logabsgamma
 
 const TRUNC = 0.64
 const cutoff = 1 / TRUNC
@@ -35,6 +35,11 @@ function jacobi_logpdf(z, x; ntrunc::Int)
         v += (iseven(n) ? 1 : -1) * acoef(n, x)
     end
     logcosh(z) - x * z^2 / 2 + log(v)
+end
+
+
+function lgamma(x)
+    logabsgamma(x)[1]
 end
 
 """
@@ -181,11 +186,11 @@ end
 """
 Random draw from a Polya-Gamma distribution 
 
-Pg(b=n,c=z) variable generation: single draw (num=1) from a single trial (n=1, shape) via the alternating series method of Devroye
+Pg(b=n,c=z) variable generation: single draw (num=1) from a single trial (n=shape=1) via the alternating series method of Devroye
 pg 153, Devroye 1986
 
     - rng:	Random number generator (e.g. Random.MersenneTwister())
-    - z:	Parameter associated with tilting.
+    - z:	Scale parameter. Parameter associated with tilting of the PG(b,0) distribution.
 
 This is the sampler you want for a single draw from a single trial, as in with Bayesian logistic models
 
@@ -232,9 +237,9 @@ pg 153, Devroye 1986
     `rpg_devroye(rng, n, z)` (for num=1)
 
     - rng:	Random number generator (e.g. Random.MersenneTwister())
-    - num:	The number of random variates to simulate.
-    - n:	Shape parameter. n must be integer >= 1
-    - z:	Parameter associated with tilting
+    - num:	The number of random variates to simulate
+    - n:	Shape parameter. Must be integer >= 1
+    - z:	Scale parameter. Parameter associated with tilting of the PG(b,0) distribution
     
     ```{julia}
     rpg_devroye(GLOBAL_RNG, 10, 1, 0.0)
@@ -263,19 +268,23 @@ Random draws from a Polya-Gamma distribution
 
 Pg(b=n,c=z) variable generation (single draw, num=1) using a truncated infinite series of indepdendent draws froma Gamma(b,1) distribution
 
-`rpg_gammasum(rng, n, z, trunc)`
+This function gets used when using `PG(b,c)` for a non-integer `b`
+
+`rpg_gammasum(rng, n, z, nterms=PolyaGammaDistribution.TERMS)`
 
 - rng:	Random number generator (e.g. Random.MersenneTwister())
-- n:	Shape parameter. n must be integer >= 1
-- z:	Parameter associated with tilting
-- nterms: The number of elements used the infinite sum of gammas approximation (higher is a better approximation, but slower).
+- n:	Shape parameter. Must be > 0, but need not be integer
+- z:	Scale parameter. Parameter associated with tilting of the PG(b,0) distribution (scale)
+- nterms: The number of elements used to approximate the infinite convolution of gammas (higher is a better approximation, but slower).
+
+Globally, you change the number of terms by setting PolyaGammaDistribution.TERMS to some different (integer) value. 
 
 ```{julia}
 rpg_gammasum_1(GLOBAL_RNG, 1, 0.0, 200)
 ```
 
 """
-function rpg_gammasum_1(rng::AbstractRNG, n::T, z::T, nterms::I=200) where {I<:Int,T<:Real}
+function rpg_gammasum_1(rng::AbstractRNG, n::T, z::T, nterms::I=TERMS) where {I<:Int,T<:Real}
     ci = (float(1:nterms) .- (0.5)) .^ 2.0 * π^2.0 * 4.0
     ai = ci .+ z .^ 2.0
     2.0 * sum(rand(rng, Gamma(n), nterms) ./ ai)
@@ -288,20 +297,20 @@ Random draws from a Polya-Gamma distribution
 
 Pg(b=n,c=z) variable generation using a truncated infinite series of indepdendent draws froma Gamma(b,1) distribution
 
-`rpg_gammasum(rng, num, n, z, trunc)`
+`rpg_gammasum(rng, num, n, z, nterms=PolyaGammaDistribution.TERMS)`
 
 - rng:	Random number generator (e.g. Random.MersenneTwister())
-- num:	The number of random variates to simulate.
-- n:	Shape parameter. n must be integer >= 1
-- z:	Parameter associated with tilting
-- nterms: The number of elements used the infinite sum of gammas approximation (higher is a better approximation, but slower).
+- num:	The number of random variates to simulate
+- n:	Shape parameter. Must be > 0, but need not be integer
+- z:	Scale parameter. Parameter associated with tilting of the PG(b,0) distribution
+- nterms: The number of elements used to approximate the infinite convolution of gammas (higher is a better approximation, but slower).
 
 ```{julia}
 rpg_gammasum(GLOBAL_RNG, 1, 1, 0.0, 200)
 ```
 
 """
-function rpg_gammasum(rng::AbstractRNG, num::I, n::T, z::T, nterms::I=200) where {I<:Int,T<:Real}
+function rpg_gammasum(rng::AbstractRNG, num::I, n::T, z::T, nterms::I=TERMS) where {I<:Int,T<:Real}
     w = zeros(Float64, num)
     @inbounds @simd for i = 1:num
         w[i] = rpg_gammasum_1(rng, n, z, nterms)
@@ -321,9 +330,7 @@ Pg(b=n=1,c=z) variable generation: single draw (num=1) from a single trial (shap
 `rpg_alt_1(rng, z)`
 
 - rng:	Random number generator (e.g. Random.MersenneTwister())
-- z:	Parameter associated with tilting
-
-
+- z:	Scale parameter. Parameter associated with tilting of the PG(b,0) distribution
 
 """
 function rpg_alt_1(rng::AbstractRNG, z::T) where {T<:Real}
@@ -346,8 +353,8 @@ Pg(b=n=1,c=z) variable generation: draws from a single trial (shape n=1) using a
 `rpg_alt(rng, num, z)`
 
 - rng:	Random number generator (e.g. Random.MersenneTwister())
-- num:	The number of random variates to simulate.
-- z:	Parameter associated with tilting
+- num:	The number of random variates to simulate
+- z:	Scale parameter. Parameter associated with tilting of the PG(b,0) distribution
 
 
 ```{julia}
