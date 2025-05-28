@@ -8,19 +8,20 @@ const TRUNC = 0.64
 const cutoff = 1 / TRUNC
 const TERMS = 20
 
+
 """
     cosh(x) = (1+e⁻²ˣ)/(2e⁻ˣ)
     so logcosh(x) = log((1+e⁻²ˣ)) + x - log(2)
                   = x + log1pexp(-2x) - log(2)
 """
 function logcosh(x::Real)
-    return x + log1pexp(-2x) - log(2)
+    x + log1pexp(-2x) - log(2)
 end
 
 """
 A Distribution containing the parameters ``b > 0`` and ``c`` for a Pólya-Gamma
 distribution ``PG(b, c)``. Note that while in general ``b`` can be real,
-samplers implemented here only work for the integral case.
+some samplers implemented here only work for the integral case.
 """
 struct PolyaGamma{T<:Integer,U<:Real} <: ContinuousUnivariateDistribution
     b::T
@@ -32,7 +33,7 @@ function jacobi_logpdf(z, x; ntrunc::Int)
     for n = 0:ntrunc
         v += (iseven(n) ? 1 : -1) * acoef(n, x)
     end
-    return logcosh(z) - x * z^2 / 2 + log(v)
+    logcosh(z) - x * z^2 / 2 + log(v)
 end
 
 """
@@ -51,25 +52,26 @@ function pg0_logpdf(x, b; ntrunc::Int)
     for n = 0:ntrunc
         v += (iseven(n) ? 1 : -1) * exp(pg_logcoef(x, b, n))
     end
-    return (b - 1) * log(2) - lgamma(b) + log(v)
+    (b - 1) * log(2) - lgamma(b) + log(v)
 end
+
 """
     log density of the PG(b, c) distribution.
     See Polson et al. 2013, section 2.2 and equation (5).
 """
 function pg_logpdf(b, c, x; ntrunc::Int)
-    b * logcosh(c / 2) - x * c^2 / 2 + pg0_logpdf(x, b; ntrunc = ntrunc)
+    b * logcosh(c / 2) - x * c^2 / 2 + pg0_logpdf(x, b; ntrunc=ntrunc)
 end
 
-function Distributions.logpdf(d::PolyaGamma, x::Real; ntrunc::Int = TERMS)
+function Distributions.logpdf(d::PolyaGamma, x::Real; ntrunc::Int=TERMS)
     if d.b == 1
-        return jacobi_logpdf(d.c / 2, 4 * x; ntrunc = ntrunc) + log(4)
+        return jacobi_logpdf(d.c / 2, 4 * x; ntrunc=ntrunc) + log(4)
     else
-        return pg_logpdf(d.b, d.c, x; ntrunc = ntrunc)
+        return pg_logpdf(d.b, d.c, x; ntrunc=ntrunc)
     end
 end
-Distributions.pdf(d::PolyaGamma, x::Real; ntrunc::Int = TERMS) =
-    exp(Distributions.logpdf(d, x; ntrunc = ntrunc))
+Distributions.pdf(d::PolyaGamma, x::Real; ntrunc::Int=TERMS) =
+    exp(Distributions.logpdf(d, x; ntrunc=ntrunc))
 
 """
 Analytically computes the mean of the given PG distribution, using the formula:
@@ -84,11 +86,35 @@ end
 
 Distributions.rand(d::PolyaGamma) = rand(GLOBAL_RNG, d)
 function Distributions.rand(rng::AbstractRNG, d::PolyaGamma)
-    rpg_devroye(rng, d.c, d.b, 1)[1]
+    if d.b == 1
+        #rpg_devroye(rng::AbstractRNG, num::T=1, n::T=1, z=0.0)
+        res = rpg_devroye_1(rng, d.c)
+    elseif typeof(d.b) <: Integer
+        #rpg_devroye(rng::AbstractRNG, num::T=1, n::T=1, z=0.0)
+        res = rpg_devroye(rng, d.b, d.c)[1]
+    else
+        #rpg_gammasum(rng::AbstractRNG, num::I=1, n::T=1.0, z::T=0.0, trunc::I=200)
+        res = rpg_gammasum_1(rng, d.b, d.c, 200)
+    end
+    res
 end
 
-# https://stats.stackexchange.com/questions/122957/what-is-the-variance-of-a-polya-gamma-distribution
-# thanks to this nerd for saving me the time of doing the derivation
+Distributions.rand(d::PolyaGamma, n::Integer) = rand(GLOBAL_RNG, d, n::Integer)
+function Distributions.rand(rng::AbstractRNG, d::PolyaGamma, n::Integer)
+    if d.b == 1
+        res = [rpg_devroye_1(rng, d.c) for _ in 1:n]
+    elseif typeof(d.b) <: Integer
+        #rpg_devroye(rng::AbstractRNG, num::T=1, n::T=1, z=0.0)
+        res = rpg_devroye(rng, n, d.b, d.c)
+    else
+        #rpg_gammasum(rng::AbstractRNG, num::I=1, n::T=1.0, z::T=0.0, trunc::I=200)
+        res = rpg_gammasum(rng, n, d.b, d.c, 200)
+    end
+    res
+end
+
+
+# Deriviation: https://stats.stackexchange.com/questions/122957/what-is-the-variance-of-a-polya-gamma-distribution
 
 """
 Analytically computes the variance of the given PG distribution, using the formula
@@ -106,7 +132,7 @@ end
 # cdf of Inverse Gaussian, already helpfully given to us
 pigauss(x, μ, λ) = cdf(InverseGaussian(μ, λ), x)
 
-function rtigauss(rng::AbstractRNG, zin, r = TRUNC)
+function rtigauss(rng::AbstractRNG, zin::Float64, r=TRUNC)
     z = abs(zin)
     μ = 1 / z
     x = r + 1
@@ -117,7 +143,6 @@ function rtigauss(rng::AbstractRNG, zin, r = TRUNC)
             while ee[1]^2 > (2 * ee[2] / r)
                 ee = randexp(rng, 2)
             end
-
             x = r / (1 + r * ee[1])^2
             α = exp(-0.5 * z^2 * x)
         end
@@ -134,8 +159,8 @@ function rtigauss(rng::AbstractRNG, zin, r = TRUNC)
     x
 end
 
-function mass_texpon(z, x = TRUNC)
-    fz = pi^2.0 / 8 + z^2.0 / 2.0
+function mass_texpon(z::Float64, x=TRUNC)
+    fz = π^2.0 / 8 + z^2.0 / 2.0
     b = sqrt(1.0 / x) * (x * z - 1.0)
     a = -1.0 * sqrt(1.0 / x) * (x * z + 1.0)
 
@@ -143,88 +168,170 @@ function mass_texpon(z, x = TRUNC)
     xb = x0 - z + logcdf(Normal(0.0, 1.0), b)
     xa = x0 + z + logcdf(Normal(0.0, 1.0), a)
 
-    qdivp = 4.0 / pi * (exp(xb) + exp(xa))
+    qdivp = 4.0 / π * (exp(xb) + exp(xa))
 
     1.0 / (1.0 + qdivp)
 end
 
-function rpg_gammasum(num = 1, n = 1, z = 0.0, trunc = 200)
-    ci = ((1:num) .- (1 / 2)) .^ 2.0 * pi^2.0 * 4.0
-    ai = ci + z .^ 2
-    w = zeros(Float64, ci)
-    @inbounds for i = 1:num
-        w[i] = 2.0 * sum(rand(rng, Gamma(n), trunc) ./ ai)
-    end
-    w
-end
 
-function acoef(n, x, r = TRUNC)
-    if (x > TRUNC)
-        pi * (n + 0.5) * exp(-(n + 0.5)^2 * pi^2 * x / 2)
+function acoef(n::I, x::T, r=TRUNC) where {I<:Int,T<:Real}
+    n5 = float(n) + 0.5
+    if (x > r)
+        π * n5 * exp(-n5^2 * π^2.0 * x * 0.5)
     else
-        (2.0 / pi / x)^1.5 * pi * (n + 0.5) * exp(-2.0 * (n + 0.5)^2 / x)
+        (2.0 / π / x)^1.5 * π * n5 * exp(-2.0 * n5^2 / x)
     end
 end
 
-# this is the sampler you want for a single element,
-# for 1, z
-function rpg_devroye_1(rng::AbstractRNG, z::Float64)
-    z = abs(z) * 0.5
-    fz = pi^2.0 / 8.0 + z^2.0 / 2.0
+"""
+Random draw from a Polya-Gamma distribution 
 
-    numtrials = 0
-    totaliter = 0
-    x = 0.0
+Pg(b=n,c=z) variable generation: single draw (num=1) from a single trial (n=1, shape) via the alternating series method of Devroye
+pg 153, Devroye 1986
+
+    - rng:	Random number generator (e.g. Random.MersenneTwister())
+    - z:	Parameter associated with tilting.
+
+This is the sampler you want for a single draw from a single trial, as in with Bayesian logistic models
+
+rpg_devroye_1(GLOBAL_RNG, 3.1)
+
+"""
+function rpg_devroye_1(rng::AbstractRNG, z=0.0)
+    z::Float64 = abs(z) * 0.5
+    ifz::Float64 = inv(0.125 * π^2.0 + 0.5*z^2.0)
+    x::Float64 = 0.0
     while true
-        numtrials += 1
         if rand(rng) < mass_texpon(z)
-            x = TRUNC + randexp(rng) / fz
+            x = TRUNC + randexp(rng) * ifz
         else
             x = rtigauss(rng, z)
         end
-        s = acoef(0, x)
+        s = acoef(0, x, TRUNC)
         y = rand(rng) * s
         n = 0
-
         while true
             n += 1
-            totaliter += 1
-            if n % 2 == 1
-                s = s - acoef(n, x)
-                if y <= s
-                    break
-                end
+            if isodd(n)
+                s -= acoef(n, x, TRUNC)
+                y <= s && break
             else
-                s = s + acoef(n, x)
-                if y > s
-                    break
-                end
+                s += acoef(n, x, TRUNC)
+                y > s && break
             end
         end
-        break
-        if y <= s
-            break
-        end
+        y <= s && break
     end
     0.25 * x
 end
 
-function rpg_devroye(rng::AbstractRNG, z = 0.0, n = 1, num = 1)
+"""
+Random draws from a Polya-Gamma distribution 
 
-    x = zeros(num)
+Pg(b=n,c=z) variable generation: draws from a single trial (n=1, shape) via the alternating series method of Devroye
+pg 153, Devroye 1986
 
+
+    `rpg_devroye(rng, num, n, z)`
+
+    `rpg_devroye(rng, n, z)` (for num=1)
+
+    - rng:	Random number generator (e.g. Random.MersenneTwister())
+    - num:	The number of random variates to simulate.
+    - n:	Shape parameter. n must be integer >= 1
+    - z:	Parameter associated with tilting
+    
+    ```{julia}
+    rpg_devroye(GLOBAL_RNG, 10, 1, 0.0)
+    ``
+"""
+function rpg_devroye(rng::AbstractRNG, num::T=1, n::T=1, z=0.0) where {T<:Int}
+    x = zeros(Float64, num)
     @inbounds for i = 1:num
-        x[i] = 0
-        @inbounds for j = 1:n
-            x[i] += rpg_devroye_1(rng, z)
-            #x[i] = x[i] + temp
-        end
+        x[i] += rpg_devroye(rng, n, z)
     end
     x
-
 end
 
-function rpg_alt_1(rng::AbstractRNG, z)
+function rpg_devroye(rng::AbstractRNG, n::T=1, z=0.0) where {T<:Int}
+    x = 0.0
+    @inbounds @simd for _ = 1:n
+        x += rpg_devroye_1(rng, z)
+    end
+    x
+end
+
+
+"""
+Random draws from a Polya-Gamma distribution 
+
+
+Pg(b=n,c=z) variable generation (single draw, num=1) using a truncated infinite series of indepdendent draws froma Gamma(b,1) distribution
+
+`rpg_gammasum(rng, n, z, trunc)`
+
+- rng:	Random number generator (e.g. Random.MersenneTwister())
+- n:	Shape parameter. n must be integer >= 1
+- z:	Parameter associated with tilting
+- trunc: The number of elements used the infinite sum of gammas approximation (higher is a better approximation, but slower).
+
+```{julia}
+rpg_gammasum_1(GLOBAL_RNG, 1, 0.0, 200)
+```
+
+"""
+function rpg_gammasum_1(rng::AbstractRNG, n::T=1.0, z::T=0.0, trunc::I=200) where {I<:Int,T<:Real}
+    ci = (float(1:trunc) .- (0.5)) .^ 2.0 * π^2.0 * 4.0
+    ai = ci .+ z .^ 2.0
+    2.0 * sum(rand(rng, Gamma(n), trunc) ./ ai)
+end
+
+
+"""
+Random draws from a Polya-Gamma distribution 
+
+
+Pg(b=n,c=z) variable generation using a truncated infinite series of indepdendent draws froma Gamma(b,1) distribution
+
+`rpg_gammasum(rng, num, n, z, trunc)`
+
+- rng:	Random number generator (e.g. Random.MersenneTwister())
+- num:	The number of random variates to simulate.
+- n:	Shape parameter. n must be integer >= 1
+- z:	Parameter associated with tilting
+- trunc: The number of elements used the infinite sum of gammas approximation (higher is a better approximation, but slower).
+
+```{julia}
+rpg_gammasum(GLOBAL_RNG, 1, 1, 0.0, 200)
+```
+
+"""
+function rpg_gammasum(rng::AbstractRNG, num::I=1, n::T=1.0, z::T=0.0, trunc::I=200) where {I<:Int,T<:Real}
+    w = zeros(Float64, num)
+    @inbounds @simd for i = 1:num
+        w[i] = rpg_gammasum_1(rng, n, z, trunc)
+    end
+    w
+end
+
+
+
+
+"""
+Random draw from a Polya-Gamma distribution 
+
+
+Pg(b=n=1,c=z) variable generation: single draw (num=1) from a single trial (shape n=1) using alternative specification
+
+`rpg_alt_1(rng, z)`
+
+- rng:	Random number generator (e.g. Random.MersenneTwister())
+- z:	Parameter associated with tilting
+
+
+
+"""
+function rpg_alt_1(rng::AbstractRNG, z::T) where {T<:Real}
     α = 0.0
     x = 0.0
     while (rand(rng) > α)
@@ -234,11 +341,29 @@ function rpg_alt_1(rng::AbstractRNG, z)
     x
 end
 
-function rpg_alt(z, num = 1)
-    Z = [z for _ = 1:num]
-    x = zeros(Z)
-    for i = 1:num
-        x[i] = rpg_alt_1(Z[i])
+
+"""
+Random draw from a Polya-Gamma distribution 
+
+
+Pg(b=n=1,c=z) variable generation: draws from a single trial (shape n=1) using alternative specification
+
+`rpg_alt(rng, num, z)`
+
+- rng:	Random number generator (e.g. Random.MersenneTwister())
+- num:	The number of random variates to simulate.
+- z:	Parameter associated with tilting
+
+
+```{julia}
+rpg_alt(GLOBAL_RNG, 1, 0.3)
+```
+
+"""
+function rpg_alt(rng::AbstractRNG, num::I=1, z::T=0.0) where {I<:Int,T<:Real}
+    x = Array{Float64,1}(undef, num)
+    @inbounds @simd for i = 1:num
+        x[i] = rpg_alt_1(rng, z)
     end
     x
 end
