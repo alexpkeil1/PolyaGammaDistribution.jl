@@ -2,12 +2,12 @@
 
 Note: this package had fallen by the wayside. I have updated it with a package file structure that works with Julia 1.3+.
 While the original author notes it is still under active development, the package works well for the purposes of Gibbs sampling
-for a logistic model, as described in the Polson, Scott and Windle paper below. I have unified the function calling and fixed a couple of bugs
-in underlying functions that were not used in the main sampling function (rand), but were needed to update this function to allow for 
-integer and non-integer arguments. Code was updated for some efficiency, as well.
+for a logistic model, as described in the Polson, Scott and Windle paper below. I have unified the function calling and fixed a couple of bugs in underlying functions that were not used in the main sampling function (rand), but were needed to update this function to allow for integer and non-integer arguments. Code was updated for some efficiency, as well, so that it is a less literal translation of the R code that inspired the package.
 
  - Alex Keil (author of the [forked version](https://github.com/alexpkeil1/PolyaGammaDistribution.jl))
 
+
+Original Readme follows:
 # What is this?
 
 This repository is still under active development, but when it's done it will provide tools for sampling from and computing moments of the Pólya-Gamma distribution, as described in [this paper by Polson et al](http://www.tandfonline.com/doi/abs/10.1080/01621459.2013.829001). They provide the [BayesLogit R package](https://cran.r-project.org/web/packages/BayesLogit/index.html) which my code at the moment essentially copies from, hence the GPL license.
