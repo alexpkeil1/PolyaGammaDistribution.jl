@@ -9,6 +9,15 @@ using Random: GLOBAL_RNG
     @test mean(PolyaGamma(2, 3.0)) ≈ 0.3017160845482888
     @test mean(PolyaGamma(1, 1.0)) ≈ 0.23105857863000487
     @test var(PolyaGamma(1, 1.0)) ≈ 0.03444664538852302
+    @test var(PolyaGamma(1.0, 1.0)) ≈ 0.03444664538852302
+end
+
+@testset begin
+   d = PolyaGamma(1, 3.0) 
+   @assert d.b == 1
+   x = 0.12  
+   ntrunc = 200
+   @test PolyaGammaDistribution.jacobi_logpdf(d.c / 2, 4.0 * x; ntrunc = ntrunc) + log(4) ≈ PolyaGammaDistribution.pg_logpdf(d.b, d.c, x; ntrunc=ntrunc)
 end
 
 @testset begin

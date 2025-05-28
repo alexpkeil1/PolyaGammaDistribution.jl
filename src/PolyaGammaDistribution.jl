@@ -21,9 +21,10 @@ end
 """
 A Distribution containing the parameters ``b > 0`` and ``c`` for a Pólya-Gamma
 distribution ``PG(b, c)``. Note that while in general ``b`` can be real,
-some samplers implemented here only work for the integral case.
+some samplers implemented here only work for the integral case, and for non-integer numbers
+an approximation method is used.
 """
-struct PolyaGamma{T<:Integer,U<:Real} <: ContinuousUnivariateDistribution
+struct PolyaGamma{T<:Real,U<:Real} <: ContinuousUnivariateDistribution
     b::T
     c::U
 end
@@ -86,7 +87,7 @@ end
 
 Distributions.rand(d::PolyaGamma) = rand(GLOBAL_RNG, d)
 function Distributions.rand(rng::AbstractRNG, d::PolyaGamma)
-    if d.b == 1
+    if (d.b === 1)
         #rpg_devroye(rng::AbstractRNG, num::T=1, n::T=1, z=0.0)
         res = rpg_devroye_1(rng, d.c)
     elseif typeof(d.b) <: Integer
@@ -111,6 +112,14 @@ Analytically computes the variance of the given PG distribution, using the formu
 """
 function Distributions.var(d::PolyaGamma)
     (d.b / (4 * d.c^3)) * (sinh(d.c) - d.c) * (sech(d.c / 2)^2)
+end
+
+function Distributions.shape(d::PolyaGamma)
+    d.b
+end
+
+function Distributions.scale(d::PolyaGamma)
+    d.c
 end
 
 # functions below are essentially translated from the BayesLogit R package
@@ -259,17 +268,17 @@ Pg(b=n,c=z) variable generation (single draw, num=1) using a truncated infinite 
 - rng:	Random number generator (e.g. Random.MersenneTwister())
 - n:	Shape parameter. n must be integer >= 1
 - z:	Parameter associated with tilting
-- trunc: The number of elements used the infinite sum of gammas approximation (higher is a better approximation, but slower).
+- nterms: The number of elements used the infinite sum of gammas approximation (higher is a better approximation, but slower).
 
 ```{julia}
 rpg_gammasum_1(GLOBAL_RNG, 1, 0.0, 200)
 ```
 
 """
-function rpg_gammasum_1(rng::AbstractRNG, n::T, z::T, trunc::I=200) where {I<:Int,T<:Real}
-    ci = (float(1:trunc) .- (0.5)) .^ 2.0 * π^2.0 * 4.0
+function rpg_gammasum_1(rng::AbstractRNG, n::T, z::T, nterms::I=200) where {I<:Int,T<:Real}
+    ci = (float(1:nterms) .- (0.5)) .^ 2.0 * π^2.0 * 4.0
     ai = ci .+ z .^ 2.0
-    2.0 * sum(rand(rng, Gamma(n), trunc) ./ ai)
+    2.0 * sum(rand(rng, Gamma(n), nterms) ./ ai)
 end
 
 
@@ -285,17 +294,17 @@ Pg(b=n,c=z) variable generation using a truncated infinite series of indepdenden
 - num:	The number of random variates to simulate.
 - n:	Shape parameter. n must be integer >= 1
 - z:	Parameter associated with tilting
-- trunc: The number of elements used the infinite sum of gammas approximation (higher is a better approximation, but slower).
+- nterms: The number of elements used the infinite sum of gammas approximation (higher is a better approximation, but slower).
 
 ```{julia}
 rpg_gammasum(GLOBAL_RNG, 1, 1, 0.0, 200)
 ```
 
 """
-function rpg_gammasum(rng::AbstractRNG, num::I, n::T, z::T, trunc::I=200) where {I<:Int,T<:Real}
+function rpg_gammasum(rng::AbstractRNG, num::I, n::T, z::T, nterms::I=200) where {I<:Int,T<:Real}
     w = zeros(Float64, num)
     @inbounds @simd for i = 1:num
-        w[i] = rpg_gammasum_1(rng, n, z, trunc)
+        w[i] = rpg_gammasum_1(rng, n, z, nterms)
     end
     w
 end
