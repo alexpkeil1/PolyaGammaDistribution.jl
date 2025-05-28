@@ -3,3 +3,4 @@
 *.jl.mem
 .code-workspace
 .vscode/settings.json
+Manifest.toml

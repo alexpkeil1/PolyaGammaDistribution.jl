@@ -1,7 +1,7 @@
 name = "PolyaGammaDistribution"
 uuid = "4fb849aa-c7ab-402c-99a2-1d769d3c2f8e"
 authors = ["Alex Keil <alexpkeil1@users.noreply.github.com>"]
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"

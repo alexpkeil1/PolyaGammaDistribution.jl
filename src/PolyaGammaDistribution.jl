@@ -99,20 +99,6 @@ function Distributions.rand(rng::AbstractRNG, d::PolyaGamma)
     res
 end
 
-Distributions.rand(d::PolyaGamma, n::Integer) = rand(GLOBAL_RNG, d, n::Integer)
-function Distributions.rand(rng::AbstractRNG, d::PolyaGamma, n::Integer)
-    if d.b == 1
-        res = [rpg_devroye_1(rng, d.c) for _ in 1:n]
-    elseif typeof(d.b) <: Integer
-        #rpg_devroye(rng::AbstractRNG, num::T=1, n::T=1, z=0.0)
-        res = rpg_devroye(rng, n, d.b, d.c)
-    else
-        #rpg_gammasum(rng::AbstractRNG, num::I=1, n::T=1.0, z::T=0.0, trunc::I=200)
-        res = rpg_gammasum(rng, n, d.b, d.c, 200)
-    end
-    res
-end
-
 
 # Deriviation: https://stats.stackexchange.com/questions/122957/what-is-the-variance-of-a-polya-gamma-distribution
 
@@ -197,7 +183,7 @@ This is the sampler you want for a single draw from a single trial, as in with B
 rpg_devroye_1(GLOBAL_RNG, 3.1)
 
 """
-function rpg_devroye_1(rng::AbstractRNG, z=0.0)
+function rpg_devroye_1(rng::AbstractRNG, z)
     z::Float64 = abs(z) * 0.5
     ifz::Float64 = inv(0.125 * π^2.0 + 0.5*z^2.0)
     x::Float64 = 0.0
@@ -245,7 +231,7 @@ pg 153, Devroye 1986
     rpg_devroye(GLOBAL_RNG, 10, 1, 0.0)
     ``
 """
-function rpg_devroye(rng::AbstractRNG, num::T=1, n::T=1, z=0.0) where {T<:Int}
+function rpg_devroye(rng::AbstractRNG, num::T, n::T, z=0.0) where {T<:Int}
     x = zeros(Float64, num)
     @inbounds for i = 1:num
         x[i] += rpg_devroye(rng, n, z)
@@ -253,7 +239,7 @@ function rpg_devroye(rng::AbstractRNG, num::T=1, n::T=1, z=0.0) where {T<:Int}
     x
 end
 
-function rpg_devroye(rng::AbstractRNG, n::T=1, z=0.0) where {T<:Int}
+function rpg_devroye(rng::AbstractRNG, n::T, z) where {T<:Int}
     x = 0.0
     @inbounds @simd for _ = 1:n
         x += rpg_devroye_1(rng, z)
@@ -280,7 +266,7 @@ rpg_gammasum_1(GLOBAL_RNG, 1, 0.0, 200)
 ```
 
 """
-function rpg_gammasum_1(rng::AbstractRNG, n::T=1.0, z::T=0.0, trunc::I=200) where {I<:Int,T<:Real}
+function rpg_gammasum_1(rng::AbstractRNG, n::T, z::T, trunc::I=200) where {I<:Int,T<:Real}
     ci = (float(1:trunc) .- (0.5)) .^ 2.0 * π^2.0 * 4.0
     ai = ci .+ z .^ 2.0
     2.0 * sum(rand(rng, Gamma(n), trunc) ./ ai)
@@ -306,7 +292,7 @@ rpg_gammasum(GLOBAL_RNG, 1, 1, 0.0, 200)
 ```
 
 """
-function rpg_gammasum(rng::AbstractRNG, num::I=1, n::T=1.0, z::T=0.0, trunc::I=200) where {I<:Int,T<:Real}
+function rpg_gammasum(rng::AbstractRNG, num::I, n::T, z::T, trunc::I=200) where {I<:Int,T<:Real}
     w = zeros(Float64, num)
     @inbounds @simd for i = 1:num
         w[i] = rpg_gammasum_1(rng, n, z, trunc)
@@ -360,7 +346,7 @@ rpg_alt(GLOBAL_RNG, 1, 0.3)
 ```
 
 """
-function rpg_alt(rng::AbstractRNG, num::I=1, z::T=0.0) where {I<:Int,T<:Real}
+function rpg_alt(rng::AbstractRNG, num::I, z::T) where {I<:Int,T<:Real}
     x = Array{Float64,1}(undef, num)
     @inbounds @simd for i = 1:num
         x[i] = rpg_alt_1(rng, z)
