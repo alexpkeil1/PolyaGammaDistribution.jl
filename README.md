@@ -2,9 +2,11 @@
 
 Note: this package had fallen by the wayside. I have updated it with a package file structure that works with Julia 1.3+.
 While the original author notes it is still under active development, the package works well for the purposes of Gibbs sampling
-for a logistic model, as described in the Polson, Scott and Windle paper below.
+for a logistic model, as described in the Polson, Scott and Windle paper below. I have unified the function calling and fixed a couple of bugs
+in underlying functions that were not used in the main sampling function (rand), but were needed to update this function to allow for 
+integer and non-integer arguments. Code was updated for some efficiency, as well.
 
- - Alex Keil
+ - Alex Keil (author of the [forked version](https://github.com/alexpkeil1/PolyaGammaDistribution.jl))
 
 # What is this?
 
