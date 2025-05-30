@@ -47,7 +47,7 @@ end
     See Polson et al. 2013, section 2.3.
 """
 function pg_logcoef(x, b, n)
-    lgamma(n + b) - lgamma(n + 1) + log(2n + b) - log(2π * x^3) / 2 - (2n + b)^2 / 8x
+    lgamma(n + b) - lgamma(n + 1) + log(2.0 * n + b) - log(2.0 * π * x^3) / 2.0 - (2.0 * n + b)^2 / (8.0 * x)
 end
 """
    log density of the PG(b, 0) distribution.
@@ -66,18 +66,17 @@ end
     See Polson et al. 2013, section 2.2 and equation (5).
 """
 function pg_logpdf(b, c, x; ntrunc::Int)
-    b * logcosh(c / 2) - x * c^2 / 2 + pg0_logpdf(x, b; ntrunc=ntrunc)
+    b * logcosh(c / 2) - x * c^2 / 2 + pg0_logpdf(x, b; ntrunc = ntrunc)
 end
 
-function Distributions.logpdf(d::PolyaGamma, x::Real; ntrunc::Int=TERMS)
+function Distributions.logpdf(d::PolyaGamma, x::Real; ntrunc::Int = TERMS)
     if d.b == 1
-        return jacobi_logpdf(d.c / 2, 4 * x; ntrunc=ntrunc) + log(4)
+        return jacobi_logpdf(d.c / 2, 4 * x; ntrunc = ntrunc) + log(4)
     else
-        return pg_logpdf(d.b, d.c, x; ntrunc=ntrunc)
+        return pg_logpdf(d.b, d.c, x; ntrunc = ntrunc)
     end
 end
-Distributions.pdf(d::PolyaGamma, x::Real; ntrunc::Int=TERMS) =
-    exp(Distributions.logpdf(d, x; ntrunc=ntrunc))
+Distributions.pdf(d::PolyaGamma, x::Real; ntrunc::Int = TERMS) = exp(Distributions.logpdf(d, x; ntrunc = ntrunc))
 
 """
 Analytically computes the mean of the given PG distribution, using the formula:
@@ -131,17 +130,28 @@ end
 
 # cdf of Inverse Gaussian, already helpfully given to us
 pigauss(x, μ, λ) = cdf(InverseGaussian(μ, λ), x)
+"""
+using Random
+@time [rtigauss(MersenneTwister(123), 0.34) for _ in 1:10000];
+"""
+function randexp!(rng, w)
+    for i in eachindex(w)
+        w[i] = randexp(rng)
+    end
+    nothing
+end
 
-function rtigauss(rng::AbstractRNG, zin::Float64, r=TRUNC)
+function rtigauss(rng::AbstractRNG, zin::Float64, r = TRUNC)
     z = abs(zin)
     μ = 1 / z
     x = r + 1
     if (μ > r)
+        ee = zeros(Float64, 2)
         α = 0.0
         while rand(rng) > α
-            ee = randexp(rng, 2)
+            randexp!(rng, ee)
             while ee[1]^2 > (2 * ee[2] / r)
-                ee = randexp(rng, 2)
+                randexp!(rng, ee)
             end
             x = r / (1 + r * ee[1])^2
             α = exp(-0.5 * z^2 * x)
@@ -149,7 +159,7 @@ function rtigauss(rng::AbstractRNG, zin::Float64, r=TRUNC)
     else
         while x > r
             λ = 1.0
-            y = rand(rng, Normal())^2
+            y = rand(rng, Normal(0.0, 1.0))^2
             x = μ + 0.5 * μ^2 / λ * y - 0.5 * μ / λ * sqrt(4 * μ * λ * y + (μ * y)^2)
             if rand(rng) > (μ / (μ + x))
                 x = μ^2 / x
@@ -159,22 +169,23 @@ function rtigauss(rng::AbstractRNG, zin::Float64, r=TRUNC)
     x
 end
 
-function mass_texpon(z::Float64, x=TRUNC)
+function mass_texpon(z::Float64, x = TRUNC)
     fz = π^2.0 / 8 + z^2.0 / 2.0
     b = sqrt(1.0 / x) * (x * z - 1.0)
     a = -1.0 * sqrt(1.0 / x) * (x * z + 1.0)
-
     x0 = log(fz) + fz * x
-    xb = x0 - z + logcdf(Normal(0.0, 1.0), b)
-    xa = x0 + z + logcdf(Normal(0.0, 1.0), a)
+    SN = Normal(0.0, 1.0)
+    xb = x0 - z + logcdf(SN, b)
+    xa = x0 + z + logcdf(SN, a)
 
-    qdivp = 4.0 / π * (exp(xb) + exp(xa))
-
-    1.0 / (1.0 + qdivp)
+    qdivp = 4.0
+    qdivp *= inv(π)
+    qdivp *= (exp(xb) + exp(xa))
+    qdivp += 1.0
+    1.0 / qdivp
 end
 
-
-function acoef(n::I, x::T, r=TRUNC) where {I<:Int,T<:Real}
+function acoef(n::I, x::T, r = TRUNC) where {I<:Int,T<:Real}
     n5 = float(n) + 0.5
     if (x > r)
         π * n5 * exp(-n5^2 * π^2.0 * x * 0.5)
@@ -196,10 +207,12 @@ This is the sampler you want for a single draw from a single trial, as in with B
 
 rpg_devroye_1(GLOBAL_RNG, 3.1)
 
+acoef(0, 1.0, TRUNC)
+
 """
 function rpg_devroye_1(rng::AbstractRNG, z)
     z::Float64 = abs(z) * 0.5
-    ifz::Float64 = inv(0.125 * π^2.0 + 0.5*z^2.0)
+    ifz::Float64 = inv(0.125 * π^2.0 + 0.5 * z^2.0)
     x::Float64 = 0.0
     while true
         if rand(rng) < mass_texpon(z)
@@ -244,8 +257,11 @@ pg 153, Devroye 1986
     ```{julia}
     rpg_devroye(GLOBAL_RNG, 10, 1, 0.0)
     ``
+    using Random
+@time [rpg_devroye(MersenneTwister(123), 1000, 1, .9) for _ in 1:1000];
+
 """
-function rpg_devroye(rng::AbstractRNG, num::T, n::T, z=0.0) where {T<:Int}
+function rpg_devroye(rng::AbstractRNG, num::T, n::T, z = 0.0) where {T<:Int}
     x = zeros(Float64, num)
     @inbounds for i = 1:num
         x[i] += rpg_devroye(rng, n, z)
@@ -255,7 +271,7 @@ end
 
 function rpg_devroye(rng::AbstractRNG, n::T, z) where {T<:Int}
     x = 0.0
-    @inbounds @simd for _ = 1:n
+    @inbounds for _ = 1:n
         x += rpg_devroye_1(rng, z)
     end
     x
@@ -282,12 +298,14 @@ Globally, you change the number of terms by setting PolyaGammaDistribution.TERMS
 ```{julia}
 rpg_gammasum_1(GLOBAL_RNG, 1, 0.0, 200)
 ```
-
 """
-function rpg_gammasum_1(rng::AbstractRNG, n::T, z::T, nterms::I=TERMS) where {I<:Int,T<:Real}
-    ci = (float(1:nterms) .- (0.5)) .^ 2.0 * π^2.0 * 4.0
-    ai = ci .+ z .^ 2.0
-    2.0 * sum(rand(rng, Gamma(n), nterms) ./ ai)
+function rpg_gammasum_1(rng::AbstractRNG, n::T, z::T, nterms::I = TERMS) where {I<:Int,T<:Real}
+    ss = 0.0
+    @inbounds for i = 1:nterms
+        aa = (float(i) - 0.5) .^ 2.0 .* π .^ 2.0 .* 4.0 .+ z .^ 2.0
+        ss += rand(rng, Gamma(n)) ./ aa
+    end
+    2.0 * ss
 end
 
 
@@ -308,16 +326,23 @@ Pg(b=n,c=z) variable generation using a truncated infinite series of indepdenden
 ```{julia}
 rpg_gammasum(GLOBAL_RNG, 1, 1, 0.0, 200)
 ```
-
+using Random
+@time [rpg_gammasum2(MersenneTwister(123), 1000, .8, .9) for _ in 1:100];
+@time [rpg_gammasum(MersenneTwister(123), 1000, .8, .9) for _ in 1:100];
+@time [rpg_gammasum2(MersenneTwister(123), 1000, .8, .9) for _ in 1:100];
+@time [rpg_gammasum(MersenneTwister(123), 1000, .8, .9) for _ in 1:100];
 """
-function rpg_gammasum(rng::AbstractRNG, num::I, n::T, z::T, nterms::I=TERMS) where {I<:Int,T<:Real}
+function rpg_gammasum(rng::AbstractRNG, num::I, n::T, z::T, nterms::I = TERMS) where {I<:Int,T<:Real}
     w = zeros(Float64, num)
-    @inbounds @simd for i = 1:num
-        w[i] = rpg_gammasum_1(rng, n, z, nterms)
-    end
+    rpg_gammasum!(rng, w, n, z, nterms)
     w
 end
 
+function rpg_gammasum!(rng::AbstractRNG, w, n::T, z::T, nterms::I = TERMS) where {I<:Int,T<:Real}
+    for i in eachindex(w)
+        w[i] = rpg_gammasum_1(rng, n, z, nterms)
+    end
+end
 
 
 
