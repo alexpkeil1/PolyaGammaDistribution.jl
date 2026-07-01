@@ -5,3 +5,4 @@
 .vscode/settings.json
 Manifest.toml
 .codecov.yml
+.DS_Store
